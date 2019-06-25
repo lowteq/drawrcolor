@@ -1,0 +1,378 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html lang="ja">
+
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8s">
+	<meta name="generator" content="HeTeMuLu Creator Ver.1.20β2">
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js" type="text/javascript"></script>
+	<title></title>
+</head>
+
+<body>
+drawr色生成手順器 v1.03<br>
+ある色を作るのに必要な混色の手順を表示する
+<script language="JavaScript" type="text/javascript">
+
+
+Array.prototype.idadd = function(index,g){
+	//動作確認済み
+	//自身の配列のindexに要素gを繰り込み
+	//例.	ar = ["a","b","c"]ならば
+	//		ar.idadd(1,"z")は
+	//		["a","z","b","c"]となる
+	var i=0;
+	var retar = new Array();
+	for (var i=0;i<this.length;i++){
+		if(i==index){
+			retar.push(g);
+		}
+		retar.push(this[i]);
+	}
+	var mlength = this.length;
+	for(var i=0;i<mlength+1;i++){
+		//alert("ppp>" + k);
+		this[i] = retar[i];
+	}
+	if(index>mlength-1){
+		this[index] = g;
+	}
+	return this;
+};
+var roulette= function(max,a){
+	
+	//0~maxまでの整数を返す
+	//aが大きいほど返り値は小さな値が多く出る
+	//a=1の場合は均等に出る
+	//
+	var r = Math.random()*Math.pow(max,1/a);
+	var rr = ~~(Math.pow(r,a));
+	return rr;
+}
+var writear = function(jq,ar,coment){
+	$(jq).append("<br> write:" + coment + "<br>");
+	for(var i=0;i<ar.length;i++){
+		$(jq).append(ar[i] + "<br>");
+	}
+}
+var colorgoal = [255,172,119];
+//RGBで代入されている
+// colorlist:色コード
+var colorlist = [
+[Number.NaN,Number.NaN,Number.NaN], //このindex colorlist[0]は数値が代入される前に処理し、遺伝子末尾の空白として扱う
+[  0,  0,  0],//黒
+[128,128,128],//灰
+[192,192,192],//薄灰
+[255,255,255],//白
+[255, 59, 33],//赤
+[255,189, 22],//橙
+[245,243, 15],//黄色
+[165,233,117],//緑
+[113,219,253],//シアン
+[250,128,249],//紫
+[142,  0,  0],//濃赤
+[255,204,153],//肌色
+[135,125, 48],//濃黄
+[  0,143, 71],//濃緑
+[ 49, 59,205],//濃青
+[192, 46,151],//濃紫
+[ 63,  3,126]//濃青紫
+];
+var rgb2hex = function(rgbar){
+	var red = ("0" + rgbar[0].toString(16)).slice(-2);
+	var green = ("0" + rgbar[1].toString(16)).slice(-2);
+	var blue = ("0" + rgbar[2].toString(16)).slice(-2);
+	return "#" + red + green + blue;
+};
+var colorspan = function(rgbar){
+	return "<span width=20 height=30 style='text-shadow:0px 0px 3px #000000;font-size:50px;color:" + rgb2hex(rgbar) + "'>■</span>";
+};
+var colorpreview = function(cindexar){
+	var rethtml="";
+	var j=0;
+	while(cindexar[j]>0){
+		if (cindexar[j]!=""){
+			//$("#a").append("+");
+			rethtml += colorspan(colorlist[cindexar[j]]);
+		}
+		
+		j++;
+	}
+	return rethtml;
+};
+
+var colorav = function(c1,c2){
+	//2色の平均
+	var av = new Array(3);
+	for (var i=0;i<3;i++){
+		av[i] = ~~((c1[i] + c2[i])/2);
+	}
+	return av;
+};
+var colordistance = function(c1,c2){
+	//2色間のユークリッド距離
+	var s=0;
+	//$("#a").append("<br>" + c1 + c2);
+	for(var i=0;i<3;i++){
+		s += (c1[i]-c2[i])*(c1[i]-c2[i]);
+	}
+	return Math.sqrt(s);
+};
+var colorlist2rgb = function(clist){
+	var c2j=0;
+	var c2sgen = colorlist[clist[0]];
+	while(clist[c2j]>0){
+		c2sgen = colorav(c2sgen,colorlist[clist[c2j]]);
+		c2j++;
+	}
+	return [c2sgen,c2j];
+}
+var randomnum = function(n,m){
+	//動作確認済み
+	//n以上m以下の整数乱数を返す
+	return  n +~~(Math.random()*(m-n+1));
+
+};
+var geneobject = function(n){
+	this.n = n;
+	this.init = function(){
+		//初期化（はじめとculcし世代交代するごとに呼ばれる）
+		this.genelist = new Array(this.n);//遺伝子配列の配列
+		this.genelength = new Array(this.n);//遺伝子配列の長さの配列
+		this.genedistance = new Array(this.n);//遺伝子配列によって定義される色と目標色のユークリッド距離
+	};
+	this.init();//初期化（はじめによぶ）
+	
+};
+var env = function(geneobjectnumber){
+
+	
+	//[環境]
+	//ベースカラーgenelist[i][0]は色コード;0を使わない（突然変異時）
+	var gonum = geneobjectnumber;//同じ時間に存在する遺伝子の数
+	this.geneelite;
+	var gk1 = 1;//適応度係数
+	this.go = new geneobject(gonum);//遺伝子配列オブジェクト
+	this.env_time=0;//culc数
+	this.init = function(){//初期化
+		for(var i=0;i<gonum;i++){
+			var glength = i%8+2;//2~9のいずれかを代入
+			this.go.genelist[i] = this.randomgene(glength);//ランダムに遺伝子配列を作成代入
+			this.go.genelength[i] = glength;//遺伝子配列の長さを代入
+		}
+	};
+
+	this.randomgene = function(n){
+		//ランダムに生成した長さnの遺伝子を返す
+	
+		var g = new Array(n+1);
+		g[0] = 4 //白 //randomnum(1,colorlist.length-1);//色コード0を使わない
+		for(var i=1;i<n;i++){
+			g[i] = randomnum(1,colorlist.length-1);//色コード0を使わない
+		}
+		g[n]=0;//末尾コード
+		return g;
+	};
+	this.evalc = function(){
+		//返り値配列 geval 
+		//評価関数　genedistanceとgenelengthから算出される適応度を返す
+		//遺伝子配列によって定義される色と目標色とのユークリッド距離をgenedistanceに代入
+		//$("#b").empty();
+		var adapt = new Array(this.go.genelist.length);
+
+		for(var i=0;i<this.go.genelist.length;i++){
+			var j = 0;
+			
+			//$("#a").append("<br>iii=" + i);
+			//$("#a").append("<br>genelist[i][0]= " + this.go.genelist[i][0]);
+			var sgen = colorlist[this.go.genelist[i][0]];//初期値としてgo.genelist[i][0]のカラーインデックスで指定したcolorlistのいずれかの要素を代入
+			
+			//$("#a").append("<br>sgenbefore=" + sgen);
+			while(this.go.genelist[i][j]>0){//末尾でないなら
+				sgen = colorav(sgen,colorlist[this.go.genelist[i][j]]);//sgenとi番目の遺伝子のj番目の色を平均化（colorav）したものをsgenに代入
+				j++;
+			}//末尾go.genelist[i][j]=0に到達したらwhileから抜ける
+			this.go.genelength[i] = j;
+			//$("#b").append("<br>sgenafter =" + sgen);
+			this.go.genedistance[i] = colordistance(sgen,colorgoal);
+		}
+		for(var i=0;i<this.go.genelist.length;i++){
+			//評価（後に変更可）
+			//adapt[i] = gk1 /( (this.go.genedistance[i]+0.01)*(this.go.genedistance[i]+0.01)*(this.go.genelength[i]));
+			adapt[i] = gk1 /( (this.go.genedistance[i]+0.01)*(this.go.genedistance[i]+0.01)*(this.go.genedistance[i]+0.01)*(this.go.genelength[i]));
+		
+		}
+		return adapt;
+	};
+	this.sort = function(v){
+		//動作確認済み
+		//返り値　引数配列の大きい順ソート結果indexを代入した配列
+		//1.初期化
+		//2.v[i]とv[tindexar[j]をくj=0から順に比べていき、v[i]がv[tindexar[j]]より小さいならループをぬけ
+		//3.tindexarのインデックスjにインデックスiを繰り込み
+		//例.		v = [2,1,4,3]ならば
+		//			tindexar = [2,3,0,1]となる
+		//
+		//例.		v[tindexar[0]]==4
+		var tindexar = new Array();//返り値の配列を作成(idaddの都合上、空配列を使う)
+		//tindexar[0] = v[0];//1.
+		for(var i=0;i<v.length;i++){
+			var j=0;
+			while(v[i]<v[tindexar[j]]){//2.
+				j++;
+			}			
+			tindexar.idadd(j,i);//3.
+		}
+		return tindexar;
+	};
+	this.crossover = function(gene0,gene1){
+		//一点交叉
+		//配列要素はインデックスが末尾にいくほど色に影響するのでどちらか一方の末尾はなるべく残した新しい遺伝子がほしい
+		var newgene = new Array();
+		var genes = [gene0,gene1];
+		var rcss = randomnum(0,1);
+		
+		//gene0とgene1の一方を先頭からいくつか切り取ったものと、もう一方を末尾からいくつか切り取ったものを結合
+		//例.		gene0 = [1,2,3];
+		//			gene1 = [4,5,6];ならば
+		//	newgene = [1,2,3,4,5,6]
+		//	newgene = [1,6]
+		//	newgene = [4,5,6,1,2,3]
+		//	newgene = [6,1]
+		//	newgene = [5,6,1]などとなる
+		//newgene = genes[rcss].slice(0,randomnum(1,genes[rcss].length-1)).concat(genes[1-rcss].slice(-1*randomnum(1,genes[1-rcss].length-1)));
+		newgene = genes[rcss].slice(0,randomnum(1,genes[rcss].length-1)).concat(genes[1-rcss].slice(-1*randomnum(1,genes[1-rcss].length-2)));
+		
+		return newgene;
+	}
+	this.mutation = function(gene){
+		//突然変異
+		var j=1;
+		var mutgene = new Array(gene.length);
+		mutgene[0] = gene[0];
+		while(gene[j]>0){
+			mutgene[j] = gene[j];
+			if(randomnum(1,10)<5){//
+				mutgene[j] = randomnum(1,colorlist.length-1);
+			}
+			j++;
+		}
+		mutgene[gene.length-1] = 0;//末尾コード
+		if(randomnum(1,10)<4){
+			mutgene[gene.length-1] = randomnum(1,colorlist.length-1);
+			mutgene[gene.length]  = 0;//末尾コード
+		
+		}
+		return mutgene;
+	}
+	this.generation = function(vdominant){
+		//交叉と突然変異
+		//ルーレット選択で交叉させる
+		//
+		//var shortindex = (go.genelength[vdominant[0]] < go.genelength[vdominant[1]])? 0 : 1;//長さの短いものをcvshortに長いものをcvlongに複製する
+		var cvkk = new Array(2);
+		//cvkk[0] = go.genelist[vdominant[shortindex]].concat(); //　配列の複製　.concat()は引数を指定していないので配列そのものの深いコピーを返す
+		//cvkk[1] = go.genelist[vdominant[1 - shortindex]].concat();
+		this.geneelite = this.go.genelist[vdominant[0]].concat();
+		var crossoverar = new Array(gonum);
+		for(var i=0;i<gonum;i++){
+			//交叉
+			//writear("#a",cvkk,"cvkk");
+			////go.genelist[i] = this.crossover(cvkk[0],cvkk[1]);
+			var r1 = roulette(gonum,1.5);
+			var r2 = (r1+1) % gonum;
+			//$("#c").append("<br>r1=" + r1 + "r2=" + r2);
+			cvkk[0] = this.go.genelist[vdominant[r1]].concat();
+			cvkk[1] = this.go.genelist[vdominant[r2]].concat();
+			crossoverar[i] = this.crossover(cvkk[0],cvkk[1]);
+			//$("#a").append("list: " + go.genelist[i].toString());
+			//$("#a").append("-----------<br>");
+		}
+		this.go.genelist = crossoverar;
+		for(var i=0;i<gonum;i++){
+			//突然変異
+			if(randomnum(1,100) < 60){
+				this.go.genelist[i] = this.mutation(this.go.genelist[i]);
+			}
+		}
+		
+		
+		//エリート
+		this.go.genelist[0] = this.geneelite;
+		
+		
+	};
+	this.calc = function(v){
+	
+		//go.genelistを評価関数this.evalc()を使って評価し、優勢種を選び交差させ、突然変異させ、genelistを更新する
+		this.env_time++;//calc数をカウント
+		
+		var gadapt = this.evalc();//[評価関数]によって定義された配列を代入 evalc()内部ではgo.genedistanceを計算
+		$("#a").empty();
+		if(v==2){writear("#a",this.go.genedistance,"-----------------" + this.env_time);	}
+				
+		var dominant = this.sort(gadapt);//gadaptの数値が大きい順にソートされたgenelistのインデックスが入った配列を代入
+		//例		go.genelist[dominant[0]]がもっとも優勢
+		//			go.genelist[dominant[go.genelist.length-1]]がもっとも劣等
+		if(v==1){
+			$("#a").empty();
+			$("#a").append("<br>結果 t=" + this.env_time + "<br>");
+			$("#a").append(this.go.genelist[dominant[0]] + " 距離:" + this.go.genedistance[dominant[0]]+"<br>");
+			$("#a").append(colorpreview(this.go.genelist[dominant[0]]));
+			
+		}else{
+			this.generation(dominant);
+		}
+		
+
+		//alert("success");
+	};
+
+	this.init();
+};
+
+var env1;
+var run;
+var elites = new Array(5)
+$(document).ready(function(){
+	env1 = new env(100);
+	$("#g").append("目標色：" + colorspan(colorgoal)).click(function(){
+		$("#g").empty();
+		
+		colorgoal = $("#colortext").val().split(",");
+		for(var i=0;i<3;i++){
+			colorgoal[i] = colorgoal[i] - 0;
+		}
+		$("#g").append("目標色：" + colorspan(colorgoal));
+	});
+	
+	run = function(){
+		var start = new Date();
+		for(var pp=0;pp<5;pp++){
+			var env0 = new env(500);
+			for(var ii=0;ii<100;ii++){
+				env0.calc(0);
+			}
+			elites[pp] = env0.geneelite;
+		}
+		for(var pp=0;pp<5;pp++){
+			$("#a").append("<p>" + colordistance(colorlist2rgb(elites[pp])[0],colorgoal))
+			$("#a").append(colorpreview(elites[pp]) + "</p>");
+		}
+		var end = new Date();
+		var diff = end.getTime() - start.getTime();
+		$("#a").append("実行時間: " + diff + " ms");
+	}
+});
+</script><input type="text" name="" id="colortext" value="255,172,119" />
+<div id="g">&nbsp;</div>
+<input type="button" name="" id="" value="実行"  OnClick="run()"/>【
+<input type="button" name="" id="" value="計算"  OnClick="env1.calc(2)"/>
+<input type="button" name="" id="" value="結果"  OnClick="env1.calc(1)"/>】
+
+<div width="300" id="b">&nbsp;</div>
+<div width="300" id="c">&nbsp;</div>
+<div width="300" id="a">&nbsp;</div>
+
+</body>
+
+</html>
